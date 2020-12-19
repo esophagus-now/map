@@ -1,2 +1,31 @@
-set a 1
-set b 2
+set a2 1
+set b33 2
+set c444 3
+set d5555 4
+set e66666 5
+set f777777 6
+set g8888888 7
+
+set j 999
+
+delk a2
+set four99999 444
+
+delk e66666
+set onenine010 19
+
+delk four99999
+
+set five0000011 5
+
+delk onenine
+
+set four99999 444
+
+delk four99999
+
+delk five0000011 
+
+set a2 11
+
+set e66666 55

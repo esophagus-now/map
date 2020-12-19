@@ -57,11 +57,14 @@ int main(void) {
             char word[32];
             int val;
             scanf("%31s%d", word, &val);
-            int rc = map_insert(map, strdup(word), 1, &val, 0);
+            char *copied = strdup(word);
+            int rc = map_insert(map, copied, 1, &val, 0);
             if (rc < 0) {
                 puts("Full");
+                free(copied);
             } else if (rc == 1) {
                 puts("Overwritten");
+                free(copied);
             } else {
                 puts("Written");
             }
