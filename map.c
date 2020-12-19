@@ -64,10 +64,10 @@ void map_ptr_free(void *a) {
 //little more streamlined to manually manage prev and next.
 void __map_init_entries(__map_metadata *md) {
     list_head *head = &md->empties;
-    //Get the list_head from the last in the array of entries
-    head->next = md->entries + md->entry_sz*md->slots + md->list_head_off;
+    //Get the list_head from the first (non-sentinel) entry
+    head->next = md->entries + md->entry_sz + md->list_head_off;
     
-    list_head *cur = md->entries + md->entry_sz + md->list_head_off;
+    list_head *cur = head->next;
     list_head *prev = head;
 
     //Do the first slots-1 entries
@@ -274,11 +274,11 @@ int __map_insert(
     //  +------+-------+------+----+--------+-----+----+----+----+----+
     //                     \______free.next pointer______|
     //
-    //We want to insert free between hbh and next.  
 
-    hbh_node->next = free_entry_node;
-    free_entry_node->prev = hbh_node;
-    hbh_node->next->prev = hbh_node;
+    //We want to insert free between hbh and next.  
+    hbh_node->next->prev = free_entry_node; //next.prev = free
+    hbh_node->next = free_entry_node;       //hbh.next = free
+    free_entry_node->prev = hbh_node;       //free.prev = hbh
 
     //All done!
 

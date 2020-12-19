@@ -1,0 +1,94 @@
+#include <stdio.h>
+#include <unistd.h>
+#include "map.h"
+
+
+int main() {
+    int i;
+    for (i = 1; i <= MAP_INIT_SZ; i++) {
+        char base_10[32];
+        sprintf(base_10, "%d", i);
+
+        char word[32];
+        
+        char *to = word;
+        char *from = base_10;
+        while (*from) {
+            //There is probably an easier way, but this 
+            //is meant to be quick and dirty
+            switch(*from++){
+            case '0':
+                *to++ = 'z'; *to++ = 'e';
+                *to++ = 'r'; *to++ = 'o';
+            break;
+
+            case '1':
+                *to++ = 'o'; *to++ = 'n';
+                *to++ = 'e';
+            break;
+
+            case '2':
+                *to++ = 't'; *to++ = 'w';
+                *to++ = 'o';
+            break;
+
+            case '3':
+                *to++ = 't'; *to++ = 'h';
+                *to++ = 'r'; *to++ = 'e';
+                *to++ = 'e';
+            break;
+
+            case '4':
+                *to++ = 'f'; *to++ = 'o';
+                *to++ = 'u'; *to++ = 'r';
+            break;
+
+            case '5':
+                *to++ = 'f'; *to++ = 'i';
+                *to++ = 'v'; *to++ = 'e';
+            break;
+
+            case '6':
+                *to++ = 's'; *to++ = 'i';
+                *to++ = 'x';
+            break;
+
+            case '7':
+                *to++ = 's'; *to++ = 'e';
+                *to++ = 'v'; *to++ = 'e';
+                *to++ = 'n';
+            break;
+
+            case '8':
+                *to++ = 'e'; *to++ = 'i';
+                *to++ = 'g'; *to++ = 'h';
+                *to++ = 't';
+            break;
+
+            case '9':
+                *to++ = 'n'; *to++ = 'i';
+                *to++ = 'n'; *to++ = 'e';
+            break;
+            }
+        }
+        *to = 0;
+
+        printf("set %s %d\n", word, i);
+    }
+
+    char buf[512];
+    while (1) {
+        int rc = read(STDIN_FILENO, buf, sizeof(buf));
+        if (rc == 0) return 0;
+        else if (rc < 1) {
+            perror("Could not read from stdin");
+            return -1;
+        } else {
+            int written = write(STDOUT_FILENO, buf, rc);
+            if (written != rc) {
+                perror("Could not write to stdout");
+                return -1;
+            }
+        }
+    }
+}

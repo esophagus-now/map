@@ -193,14 +193,14 @@ void *__map_search(__map_metadata const *md, void const *key);
 void __map_init_entries(__map_metadata *md);
 
 //Some helpers to make map_init a little friendlier
-#define VAL2VAL map_val_hash,map_val_comp,map_val_comp,map_val_free,map_val_free,sizeof((map)->record.key),sizeof((map)->record.key)
-#define VAL2PTR map_val_hash,map_val_comp,map_ptr_comp,map_val_free,map_ptr_free,sizeof((map)->record.key),sizeof(*(map)->record.key)
+#define VAL2VAL map_val_hash,map_val_comp,map_val_comp,map_val_free,map_val_free,sizeof((map)->record.key),sizeof((map)->record.val)
+#define VAL2PTR map_val_hash,map_val_comp,map_ptr_comp,map_val_free,map_ptr_free,sizeof((map)->record.key),sizeof(*(map)->record.val)
 #define VAL2STR map_val_hash,map_val_comp,map_str_comp,map_val_free,map_str_free,sizeof((map)->record.key),0
-#define PTR2VAL map_ptr_hash,map_ptr_comp,map_val_comp,map_ptr_free,map_val_free,sizeof(*(map)->record.key),sizeof((map)->record.key)
-#define PTR2PTR map_ptr_hash,map_ptr_comp,map_ptr_comp,map_ptr_free,map_ptr_free,sizeof(*(map)->record.key),sizeof(*(map)->record.key)
+#define PTR2VAL map_ptr_hash,map_ptr_comp,map_val_comp,map_ptr_free,map_val_free,sizeof(*(map)->record.key),sizeof((map)->record.val)
+#define PTR2PTR map_ptr_hash,map_ptr_comp,map_ptr_comp,map_ptr_free,map_ptr_free,sizeof(*(map)->record.key),sizeof(*(map)->record.val)
 #define PTR2STR map_ptr_hash,map_ptr_comp,map_str_comp,map_ptr_free,map_str_free,sizeof(*(map)->record.key),0
-#define STR2VAL map_str_hash,map_str_comp,map_val_comp,map_str_free,map_val_free,0,sizeof((map)->record.key)
-#define STR2PTR map_str_hash,map_str_comp,map_ptr_comp,map_str_free,map_ptr_free,0,sizeof(*(map)->record.key)
+#define STR2VAL map_str_hash,map_str_comp,map_val_comp,map_str_free,map_val_free,0,sizeof((map)->record.val)
+#define STR2PTR map_str_hash,map_str_comp,map_ptr_comp,map_str_free,map_ptr_free,0,sizeof(*(map)->record.val)
 #define STR2STR map_str_hash,map_str_comp,map_str_comp,map_str_free,map_str_free,0,0
 
 //https://stackoverflow.com/questions/29962560/understanding-defer-and-obstruct-macros/30009264

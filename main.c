@@ -9,11 +9,15 @@ void print_map(MAP_PARAM(char *, int, my_param)) {
     list_head *head = md->entries + md->list_head_off;
 
     list_head *cur;
+    int count = 0;
     for (cur = head->next; cur != head; cur = cur->next) {
         void *entry = ((void*)cur) - md->list_head_off;
         printf("Key %s ", *(char const**) (entry+md->key_off));
         printf("Value %d\n", *(int*) (entry+md->val_off));
+        count++;
     }
+
+    printf("Total count: %d\n", count);
 }
 
 uint32_t deref_str_hash(void const *p) {
@@ -58,6 +62,8 @@ int main(void) {
                 puts("Full");
             } else if (rc == 1) {
                 puts("Overwritten");
+            } else {
+                puts("Written");
             }
         } else if (!strcmp(cmd, "get")) {
             char word[32];
@@ -77,6 +83,8 @@ int main(void) {
             } else {
                 puts("Not found");
             }
+        } else if (!strcmp(cmd, "print")) {
+            print_map(MAP_ARG(map));
         } else {
             int *val = map_search(map, cmd);
             if (val) {
