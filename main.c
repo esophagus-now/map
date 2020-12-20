@@ -4,6 +4,9 @@
 #include "map.h"
 #include "list.h"
 
+//I was getting tired of seeing that annoying warning
+char *strdup(char const *);
+
 void print_map(MAP_PTR_PARAM(char *, int, my_param)) {
     __map_metadata *md = (*my_param)->md;
     list_head *head = md->entries + md->list_head_off;

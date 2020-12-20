@@ -47,7 +47,7 @@ void map_ptr_free(void *a);
 typedef struct {
     uint32_t slots; //Does not include sentinel
 
-    //Could have kept head of list of full node here,
+    //Could have kept head of list of full nodes here,
     //but the sentinel already has space for it (and 
     //we get a benefit when it comes to managing flags).
     list_head empties; //Linked list of empty nodes
@@ -56,10 +56,8 @@ typedef struct {
     //sentinel to be bigger than the size of a record
 
     //Specific functions needed to manage this map.
-    //The hash and compar are for hashing and comparing
-    //keys, and the other functions are optional. They
-    //are only used when freeing the entire map or when 
-    //an entry is overwritten.
+    //It is possible for the user to define custom 
+    //functions for this.
     map_hash_fn *hash;
     map_comp_fn *key_comp;
     map_comp_fn *val_comp;
