@@ -150,6 +150,9 @@ typedef struct {
     unsigned key_sz;
     unsigned val_off;
     unsigned val_sz;
+
+    //Another irksome offset to manage:
+    unsigned md_ptr_off;
 } __map_metadata;
 
 #define MAP_STRUCT(keytype, valtype, name) \
@@ -157,7 +160,7 @@ struct MAP_STRUCT_##name {                 \
     list_head entry_list;                  \
     __entry_flags flags;                   \
     union {                                \
-        __map_metadata *sentinel;          \
+        __map_metadata *md;                \
                                            \
         struct {                           \
             keytype key;                   \
@@ -169,25 +172,18 @@ struct MAP_STRUCT_##name {                 \
 #define MAP_DECL(keytype, valtype, name)     \
     MAP_STRUCT(keytype, valtype, name) *name
 
-#define MAP_PARAM(keytype, valtype, name)    \
-    DISABLE_WVISIBILITY                      \
-    MAP_STRUCT(keytype, valtype, name) *name \
+#define MAP_PTR_PARAM(keytype, valtype, name) \
+    DISABLE_WVISIBILITY                       \
+    MAP_STRUCT(keytype, valtype, name) **name \
     RESTORE_WVISIBILITY
 
 //Sadly, I couldn't find a way to implement type checking. C++ templates
 //would have helped here
-#define MAP_ARG(map) ((void*)(map))
+#define MAP_ARG(map) ((void*)(&map))
 
 //Don't have to use this if it's too inconvenient, but probably nicer
 #define MAKE_MAP_TYPE(keytype, valtype, typename) \
-typedef MAP_STRUCT(keytype, valtype, typename) typename
-
-//Returns NULL if not found, or pointer to value if found
-void *__map_search(__map_metadata const *md, void const *key);
-
-//No strong type checking, but hey, at least it works
-#define map_search(map, k) \
-    (__typeof__(&map->record.val)) __map_search(map->sentinel, k)
+    typedef MAP_STRUCT(keytype, valtype, typename) typename
 
 //Internal function that sets up the free list of entries.
 void __map_init_entries(__map_metadata *md);
@@ -210,7 +206,7 @@ void __map_init_entries(__map_metadata *md);
 #define EXPAND(...) __VA_ARGS__
 #define map_init(map,x) EXPAND(DEFER(map_custom_init)(map,x))
 
-#define MAP_INIT_SZ 128
+#define MAP_INIT_SZ 4
 //Does not free existing map data. Sadly, we have the same 
 //problem as qsort that we can't type-check the given
 //function pointers (i.e. their arguments have to all be 
@@ -226,10 +222,10 @@ do {                                                                \
     map->entry_list.next = &(map->entry_list);                      \
     map->entry_list.prev = &(map->entry_list);                      \
                                                                     \
-    (map)->sentinel = malloc(sizeof(__map_metadata));               \
-    if (!(map)->sentinel) FAST_FAIL("out of memory");               \
+    (map)->md = malloc(sizeof(__map_metadata));                     \
+    if (!(map)->md) FAST_FAIL("out of memory");                     \
                                                                     \
-    *((map)->sentinel) = (__map_metadata) {                         \
+    *((map)->md) = (__map_metadata) {                               \
         .slots = MAP_INIT_SZ - 1,                                   \
                                                                     \
         .hash = hsh,                                                \
@@ -249,32 +245,36 @@ do {                                                                \
         .key_off = ((void*)&(map)->record.key) - (void*)(map),      \
         .key_sz = ksz,                                              \
         .val_off = ((void*)&(map)->record.val) - (void*)(map),      \
-        .val_sz = vsz                                               \
+        .val_sz = vsz,                                              \
+                                                                    \
+        .md_ptr_off = ((void*)&(map)->md) - (void*)(map)            \
     };                                                              \
                                                                     \
-    __map_init_entries((map)->sentinel);                            \
+    __map_init_entries((map)->md);                                  \
 } while(0)
 
 //Traverses entire list and checks if any of the keys/values should
 //be freed. TODO? Have a fast version that assumes no nodes need to 
 //be freed?
 void __map_free(__map_metadata *md);
-#define map_free(map) __map_free(map->sentinel)
+#define map_free(map) __map_free(map->md)
 
-#define map_full(map) (list_empty(&(map)->sentinel->empties))
-#define __map_md_full(md) list_empty(&md->empties)
+//Returns NULL if not found, or pointer to value if found
+void *__map_search(__map_metadata const *md, void const *key);
+//No strong type checking, but hey, at least it works
+#define map_search(map, k) \
+    (__typeof__(&((*map)->record.val))) __map_search((*map)->md, k)
 
 //Returns 0 on success, 1 if previous value overwritten,
 //or negative on error
 int __map_insert(
-    __map_metadata *md, 
+    void **sentinel_entry, __map_metadata *md, 
     void const *k, int free_key,
     void const *v, int free_val
 );
 #define map_insert(map,k,free_key,pv,free_val) \
-    __map_insert(map->sentinel, k, free_key, pv, free_val)
+    __map_insert((void**)map, ((*map)->md), k, free_key, pv, free_val)
 
-#define __map_first_free_entry(md) ((md)->empties.next)
 
 //Searches for either pk_needle or pv_needle depending on which one 
 //is not NULL. If both are given, will search using key but will also 
@@ -286,6 +286,14 @@ int __map_search_delete(
     void const *v
 );
 #define map_search_delete(map, k, v) \
-    __map_search_delete((map)->sentinel, k, v)
+    __map_search_delete((*map)->md, k, v)
+
+
+//Some little helper macros
+
+#define map_full(map) (list_empty(&(map)->md->empties))
+#define __map_md_full(md) list_empty(&md->empties)
+
+#define __map_first_free_entry(md) ((md)->empties.next)
 
 #endif

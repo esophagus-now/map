@@ -175,10 +175,64 @@ static void fill_entry(
     memcpy(e + md->val_off, v, val_sz);
 }
 
+static void map_expand(__map_metadata *md) {
+    void *new_entries = calloc((md->slots+1)*2, md->entry_sz);
+    if (!new_entries) {
+        FAST_FAIL("out of memory");
+    }
+    //Set the filled list in the new entries to be empty 
+    list_head *new_filled_list = new_entries + md->list_head_off;
+    new_filled_list->prev = new_filled_list;
+    new_filled_list->next = new_filled_list;
+    __map_metadata **ptr_to_md = new_entries + md->md_ptr_off;
+    *ptr_to_md = md;
+
+    //Copy all the filled entries to the new storage. By the way, the 
+    //code in this function is much smoother ever since I put the 
+    //sentinel for filled node in entries[0] (the empties sentinel 
+    //used to be there)
+    list_head *head = md->entries + md->list_head_off;
+
+    void *old_entries = md->entries; //Need to keep this so we can free later
+    //These need to be set so that __map_insert will work
+    md->entries = new_entries;
+    md->slots = 2*(md->slots+1) - 1; //Another advantage of sentinel: 2n+1 is coprime with n
+
+    //Build the initial linked list of free nodes (note: this had to be 
+    //done after setting the new entries in md)
+    __map_init_entries(md);
+
+    list_head *cur;
+    for (cur = head->next; cur != head; cur = cur->next) {
+        //Annoying: because of my trick involving pointers that 
+        //simplifies the API, I have to "undo" already having a 
+        //pointer-to-pointer
+        void *entry = cur - md->list_head_off;
+        __entry_flags *flags = entry + md->flag_off;
+        void *k = entry + md->key_off;
+        if (md->key_is_ptr) k = *(void**)k;
+        void *v = entry + md->val_off;
+        if (md->val_is_ptr) v = *(void**)v;
+        __map_insert(NULL, md, k, flags->free_key, v, flags->free_val);
+    }
+
+    //Notice we don't call the specific freeing functions on the 
+    //keys and values; we just free the old memory. 
+    free(old_entries);
+}
+
 //Returns 0 on success, 1 if previous value overwritten,
 //or negative on error
 int __map_insert(
-    __map_metadata *md, 
+    //Terrible! I forgot that expanding the map means that the 
+    //handle the user is holding onto can be updated to point 
+    //somewhere new 
+    //TODO: change things around so the user is holding onto a 
+    //__map_metadata struct (the current method basically seemed 
+    //perfectly fine until just now as I ran into this issue) 
+    //Anway, this first parameter is only ever used when we perform 
+    //an expansion
+    void **sentinel_entry, __map_metadata *md, 
     void const *k, int free_key,
     void const *v, int free_val
 ) {
@@ -239,8 +293,16 @@ int __map_insert(
 
     //The only way to insert is to use a free element
     if(__map_md_full(md)) {
-        //TODO: reallocate the hash table
-        return -1;
+        map_expand(md);
+        *sentinel_entry = md->entries;
+        //So all of the work we just did has essentially gone to 
+        //waste because all the memory and indices have been moved 
+        //around. The simplest thing to do is to just recurse; the 
+        //small amount of time we would save with a more clever
+        //implementation is pretty small compared to the time we're 
+        //forced to spend to rehash everything into the new table
+
+        return __map_insert(NULL, md, k, free_key, v, free_val);
     }
 
     list_head *free_entry_node = __map_first_free_entry(md);

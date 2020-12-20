@@ -4,8 +4,8 @@
 #include "map.h"
 #include "list.h"
 
-void print_map(MAP_PARAM(char *, int, my_param)) {
-    __map_metadata *md = my_param->sentinel;
+void print_map(MAP_PTR_PARAM(char *, int, my_param)) {
+    __map_metadata *md = (*my_param)->md;
     list_head *head = md->entries + md->list_head_off;
 
     list_head *cur;
@@ -58,7 +58,7 @@ int main(void) {
             int val;
             scanf("%31s%d", word, &val);
             char *copied = strdup(word);
-            int rc = map_insert(map, copied, 1, &val, 0);
+            int rc = map_insert(&map, copied, 1, &val, 0);
             if (rc < 0) {
                 puts("Full");
                 free(copied);
@@ -71,7 +71,7 @@ int main(void) {
         } else if (!strcmp(cmd, "get")) {
             char word[32];
             scanf("%31s", word);
-            int *val = map_search(map, word);
+            int *val = map_search(&map, word);
             if (val) {
                 printf("%d\n", *val);
             } else {
@@ -80,7 +80,7 @@ int main(void) {
         } else if (!strcmp(cmd, "delk")) {
             char word[32];
             scanf("%31s", word);
-            int rc = map_search_delete(map, word, NULL);
+            int rc = map_search_delete(&map, word, NULL);
             if (rc == 0) {
                 puts("Deleted");
             } else {
@@ -89,7 +89,7 @@ int main(void) {
         } else if (!strcmp(cmd, "print")) {
             print_map(MAP_ARG(map));
         } else {
-            int *val = map_search(map, cmd);
+            int *val = map_search(&map, cmd);
             if (val) {
                 printf("%d\n", *val);
             } else {
