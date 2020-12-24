@@ -57,7 +57,7 @@ typedef struct {
 
     //Specific functions needed to manage this map.
     //It is possible for the user to define custom 
-    //functions for this.
+    //functions.
     map_hash_fn *hash;
     map_comp_fn *key_comp;
     map_comp_fn *val_comp;

@@ -1,0 +1,9 @@
+Okay, I think the code I have here is a decent start, but there are still a
+few things I want to do:
+
+- Change the API so that the __map_metadata struct is the thing that the 
+  user holds onto and passes into functions
+- Add assert statements to verify offsets, sizes, and whether key/value
+  is a value/pointer/string. This is the best I can do without strong 
+  compiler type checking; the checks will happen at runtime but I'll
+  make it so you can turn them off with a #define somewhere.
