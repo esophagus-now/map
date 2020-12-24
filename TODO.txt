@@ -7,3 +7,11 @@ few things I want to do:
   is a value/pointer/string. This is the best I can do without strong 
   compiler type checking; the checks will happen at runtime but I'll
   make it so you can turn them off with a #define somewhere.
+- Try my hand at property-based testing
+- See if I can find a nice way to let users iterate through all items 
+  (something similar to how the Verilog PLI does it)
+- Currently, it's very messy to define your own custom map hash function 
+  or comparison function(s). I haven't though of a nice way to address this 
+- Would be nice to get rid of that runtime check for key_is_ptr. Can we 
+  fix the original problem (annoying need for pointers-to-pointers) in a 
+  more elegant way?

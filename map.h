@@ -1,32 +1,11 @@
 #ifndef MAP_H
 #define MAP_H 1
 
+#include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
 #include "list.h"
 #include "fast_fail.h"
-
-#ifdef __clang__
-#define DISABLE_WVISIBILITY                           \
-_Pragma("clang diagnostic push")                      \
-_Pragma("clang diagnostic ignored \"-Wvisibility\"")  
-
-#define RESTORE_WVISIBILITY     \
-_Pragma("clang diagnostic pop")
-
-#else
-#error This code only compiles with clang
-#endif
-
-#define RV_AMP(x) ((__typeof__(x)[1]){x})
-#define STR_AMP(x) ((char const*[1]){(char const*)(x)})
-
-typedef struct {
-    unsigned    is_filled   :1;
-    unsigned    is_last     :1;
-    unsigned    free_key    :1;
-    unsigned    free_val    :1;
-} __entry_flags;
 
 typedef uint32_t map_hash_fn(void const *, unsigned);
 uint32_t map_val_hash(void const *a, unsigned sz);
@@ -43,6 +22,12 @@ void map_val_free(void *a); //This is technically not needed
 void map_ptr_free(void *a);
 #define map_str_free map_ptr_free
 
+typedef struct {
+    unsigned    is_filled   :1;
+    unsigned    is_last     :1;
+    unsigned    free_key    :1;
+    unsigned    free_val    :1;
+} __entry_flags;
 
 typedef struct {
     uint32_t slots; //Does not include sentinel
@@ -148,61 +133,40 @@ typedef struct {
     unsigned key_sz;
     unsigned val_off;
     unsigned val_sz;
+} map;
 
-    //Another irksome offset to manage:
-    unsigned md_ptr_off;
-} __map_metadata;
-
-#define MAP_STRUCT(keytype, valtype, name) \
-struct MAP_STRUCT_##name {                 \
-    list_head entry_list;                  \
-    __entry_flags flags;                   \
-    union {                                \
-        __map_metadata *md;                \
-                                           \
-        struct {                           \
-            keytype key;                   \
-            valtype val;                   \
-        } record;                          \
-    };                                     \
+#define MAP_STRUCT(ktype, vtype) \
+struct {                         \
+    list_head entry_list;        \
+    __entry_flags flags;         \
+    ktype key;                   \
+    vtype val;                   \
 }
 
-#define MAP_DECL(keytype, valtype, name)     \
-    MAP_STRUCT(keytype, valtype, name) *name
-
-#define MAP_PTR_PARAM(keytype, valtype, name) \
-    DISABLE_WVISIBILITY                       \
-    MAP_STRUCT(keytype, valtype, name) **name \
-    RESTORE_WVISIBILITY
-
-//Sadly, I couldn't find a way to implement type checking. C++ templates
-//would have helped here
-#define MAP_ARG(map) ((void*)(&map))
-
-//Don't have to use this if it's too inconvenient, but probably nicer
-#define MAKE_MAP_TYPE(keytype, valtype, typename) \
-    typedef MAP_STRUCT(keytype, valtype, typename) typename
-
 //Internal function that sets up the free list of entries.
-void __map_init_entries(__map_metadata *md);
+void __map_init_entries(map *md);
 
 //Some helpers to make map_init a little friendlier
-#define VAL2VAL map_val_hash,map_val_comp,map_val_comp,map_val_free,map_val_free,sizeof((map)->record.key),sizeof((map)->record.val)
-#define VAL2PTR map_val_hash,map_val_comp,map_ptr_comp,map_val_free,map_ptr_free,sizeof((map)->record.key),sizeof(*(map)->record.val)
-#define VAL2STR map_val_hash,map_val_comp,map_str_comp,map_val_free,map_str_free,sizeof((map)->record.key),0
-#define PTR2VAL map_ptr_hash,map_ptr_comp,map_val_comp,map_ptr_free,map_val_free,sizeof(*(map)->record.key),sizeof((map)->record.val)
-#define PTR2PTR map_ptr_hash,map_ptr_comp,map_ptr_comp,map_ptr_free,map_ptr_free,sizeof(*(map)->record.key),sizeof(*(map)->record.val)
-#define PTR2STR map_ptr_hash,map_ptr_comp,map_str_comp,map_ptr_free,map_str_free,sizeof(*(map)->record.key),0
-#define STR2VAL map_str_hash,map_str_comp,map_val_comp,map_str_free,map_val_free,0,sizeof((map)->record.val)
-#define STR2PTR map_str_hash,map_str_comp,map_ptr_comp,map_str_free,map_ptr_free,0,sizeof(*(map)->record.val)
+#define VAL2VAL map_val_hash,map_val_comp,map_val_comp,map_val_free,map_val_free,sizeof(entries->key),sizeof(entries->val)
+#define VAL2PTR map_val_hash,map_val_comp,map_ptr_comp,map_val_free,map_ptr_free,sizeof(entries->key),sizeof(*entries->val)
+#define VAL2STR map_val_hash,map_val_comp,map_str_comp,map_val_free,map_str_free,sizeof(entries->key),0
+#define PTR2VAL map_ptr_hash,map_ptr_comp,map_val_comp,map_ptr_free,map_val_free,sizeof(*entries->key),sizeof(entries->val)
+#define PTR2PTR map_ptr_hash,map_ptr_comp,map_ptr_comp,map_ptr_free,map_ptr_free,sizeof(*entries->key),sizeof(*entries->val)
+#define PTR2STR map_ptr_hash,map_ptr_comp,map_str_comp,map_ptr_free,map_str_free,sizeof(*entries->key),0
+#define STR2VAL map_str_hash,map_str_comp,map_val_comp,map_str_free,map_val_free,0,sizeof(entries->val)
+#define STR2PTR map_str_hash,map_str_comp,map_ptr_comp,map_str_free,map_ptr_free,0,sizeof(*entries->val)
 #define STR2STR map_str_hash,map_str_comp,map_str_comp,map_str_free,map_str_free,0,0
 
 //https://stackoverflow.com/questions/29962560/understanding-defer-and-obstruct-macros/30009264
 #define EMPTY()
 #define DEFER(id) id EMPTY()
-#define OBSTRUCT(...) __VA_ARGS__ DEFER(EMPTY)()
 #define EXPAND(...) __VA_ARGS__
-#define map_init(map,x) EXPAND(DEFER(map_custom_init)(map,x))
+#define map_init(m,ktype,vtype,x) EXPAND(DEFER(map_custom_init)(m,ktype,vtype,x))
+
+//Sadly, standard offsetof requires an actual type name, so we need this 
+//dirty, dirty hack.
+#define anon_offsetof(ptr,member) \
+    ((void*)(&(ptr)->member) - (void*)(ptr))
 
 #define MAP_INIT_SZ 4
 //Does not free existing map data. Sadly, we have the same 
@@ -213,85 +177,80 @@ void __map_init_entries(__map_metadata *md);
 //inlining penalty, so maybe I'll change that later on. The 
 //downside is that all those sizeofs and offsets need to be 
 //passed into the function, which means a lot of parameters
-#define map_custom_init(map,hsh,kcomp,vcomp,kfree,vfree,ksz,vsz)    \
-do {                                                                \
-    map = calloc(MAP_INIT_SZ,sizeof(*(map)));                       \
-    if (!(map)) FAST_FAIL("out of memory");                         \
-    map->entry_list.next = &(map->entry_list);                      \
-    map->entry_list.prev = &(map->entry_list);                      \
-                                                                    \
-    (map)->md = malloc(sizeof(__map_metadata));                     \
-    if (!(map)->md) FAST_FAIL("out of memory");                     \
-                                                                    \
-    *((map)->md) = (__map_metadata) {                               \
-        .slots = MAP_INIT_SZ - 1,                                   \
-                                                                    \
-        .hash = hsh,                                                \
-        .key_comp = kcomp,                                          \
-        .val_comp = vcomp,                                          \
-        .key_free = kfree,                                          \
-        .val_free = vfree,                                          \
-                                                                    \
-        .key_is_ptr = (kcomp==map_ptr_comp||kcomp==map_str_comp),   \
-        .val_is_ptr = (vcomp==map_ptr_comp||vcomp==map_str_comp) ,  \
-                                                                    \
-        .entries = map,                                             \
-        .entry_sz = sizeof(*(map)),                                 \
-                                                                    \
-        .list_head_off = ((void*)&(map)->entry_list) - (void*)(map),\
-        .flag_off = ((void*)&(map)->flags) - (void*)(map),          \
-        .key_off = ((void*)&(map)->record.key) - (void*)(map),      \
-        .key_sz = ksz,                                              \
-        .val_off = ((void*)&(map)->record.val) - (void*)(map),      \
-        .val_sz = vsz,                                              \
-                                                                    \
-        .md_ptr_off = ((void*)&(map)->md) - (void*)(map)            \
-    };                                                              \
-                                                                    \
-    __map_init_entries((map)->md);                                  \
+#define map_custom_init(m,ktype,vtype,hsh,kcmp,vcmp,kfree,vfree,ksz,vsz) \
+do {                                                                     \
+    MAP_STRUCT(ktype,vtype) *entries =                                   \
+        calloc(MAP_INIT_SZ,sizeof(*entries));                            \
+    if (!entries) FAST_FAIL("out of memory");                            \
+    list_head *fulls = &entries->entry_list;                             \
+    fulls->next = fulls;                                                 \
+    fulls->prev = fulls;                                                 \
+                                                                         \
+    *(m) = (map) {                                                       \
+        .slots = MAP_INIT_SZ - 1,                                        \
+                                                                         \
+        .hash = hsh,                                                     \
+        .key_comp = kcmp,                                                \
+        .val_comp = vcmp,                                                \
+        .key_free = kfree,                                               \
+        .val_free = vfree,                                               \
+                                                                         \
+        .key_is_ptr = (kcmp==map_ptr_comp||kcmp==map_str_comp),          \
+        .val_is_ptr = (vcmp==map_ptr_comp||vcmp==map_str_comp),          \
+                                                                         \
+        .entries = entries,                                              \
+        .entry_sz = sizeof(*entries),                                    \
+                                                                         \
+        .list_head_off = anon_offsetof(entries,entry_list),              \
+        .flag_off = anon_offsetof(entries,flags),                        \
+        .key_off = anon_offsetof(entries,key),                           \
+        .key_sz = ksz,                                                   \
+        .val_off = anon_offsetof(entries,val),                           \
+        .val_sz = vsz,                                                   \
+    };                                                                   \
+                                                                         \
+    __map_init_entries(m);                                               \
 } while(0)
 
 //Traverses entire list and checks if any of the keys/values should
 //be freed. TODO? Have a fast version that assumes no nodes need to 
 //be freed?
-void __map_free(__map_metadata *md);
-#define map_free(map) __map_free(map->md)
+void map_free(map *md);
 
 //Returns NULL if not found, or pointer to value if found
-void *__map_search(__map_metadata const *md, void const *key);
-//No strong type checking, but hey, at least it works
-#define map_search(map, k) \
-    (__typeof__(&((*map)->record.val))) __map_search((*map)->md, k)
+void *map_search(map const *md, void const *key);
 
 //Returns 0 on success, 1 if previous value overwritten,
 //or negative on error
-int __map_insert(
-    void **sentinel_entry, __map_metadata *md, 
+int map_insert(
+    map *md, 
     void const *k, int free_key,
     void const *v, int free_val
 );
-#define map_insert(map,k,free_key,pv,free_val) \
-    __map_insert((void**)map, ((*map)->md), k, free_key, pv, free_val)
 
-
-//Searches for either pk_needle or pv_needle depending on which one 
+//Searches for either k_needle or v_needle depending on which one 
 //is not NULL. If both are given, will search using key but will also 
 //make sure value matches. Returns 0 if entry was deleted, 1 if it 
 //wasn't found, or negative on error
-int __map_search_delete(
-    __map_metadata *md, 
-    void const *k, 
-    void const *v
-);
-#define map_search_delete(map, k, v) \
-    __map_search_delete((*map)->md, k, v)
-
+int map_search_delete(map *md, void const *k_needle, void const *v_needle);
 
 //Some little helper macros
+#define map_full(m) (list_empty(&(m)->empties))
+#define __map_first_free_entry(m) ((m)->empties.next)
+//Confirmed that these add no overhead when compiling with -O2
+//(thanks, Godbolt!)
+#define RV_AMP(x) ((__typeof__(x)[1]){x})
+#define STR_AMP(x) ((char const*[1]){(char const*)(x)})
 
-#define map_full(map) (list_empty(&(map)->md->empties))
-#define __map_md_full(md) list_empty(&md->empties)
-
-#define __map_first_free_entry(md) ((md)->empties.next)
+//TODO: is there any nice way to deal with key_is_ptr? 
+#define ASSERT_MAP_TYPE(m, ktype, vtype)                           \
+do {                                                               \
+    MAP_STRUCT(ktype,vtype) *dummy = NULL;                         \
+    assert((m)->entry_sz == sizeof(*dummy));                       \
+    assert((m)->list_head_off == anon_offsetof(dummy,entry_list)); \
+    assert((m)->flag_off == anon_offsetof(dummy,flags));           \
+    assert((m)->key_off == anon_offsetof(dummy,key));              \
+    assert((m)->val_off == anon_offsetof(dummy,val));              \
+} while(0)
 
 #endif
