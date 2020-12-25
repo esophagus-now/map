@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include "list.h"
 #include "fast_fail.h"
 
@@ -260,5 +261,20 @@ do {                                                               \
     assert((m)->key_off == anon_offsetof(dummy,key));              \
     assert((m)->val_off == anon_offsetof(dummy,val));              \
 } while (0)
+
+
+typedef list_head *map_iter;
+#define map_begin(m) (((list_head*)((m)->entries + (m)->list_head_off))->next)
+#define map_iter_step(it) ((it) = (it)->next)
+//Was there a reason to write this as a macro?
+#define map_iter_deref(m, it, k_dst, v_dst)                           \
+do {                                                                  \
+    void *entry = ((void*)it) - (m)->list_head_off;                   \
+    void *pk = entry + (m)->key_off;                                  \
+    void *pv = entry + (m)->val_off;                                  \
+    memcpy(k_dst, pk, (m)->key_is_ptr ? sizeof(void*) : (m)->key_sz); \
+    memcpy(v_dst, pv, (m)->val_is_ptr ? sizeof(void*) : (m)->val_sz); \
+} while(0)
+#define map_end(m) ((list_head*)((m)->entries + (m)->list_head_off))
 
 #endif

@@ -1,31 +1,45 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "map.h"
 #include "list.h"
+#include "vector.h"
 
 //I was getting tired of seeing that annoying warning
 char *strdup(char const *);
 
 void print_map(map const *md) {
-    map_assert_type(md, char const*, int, STR2VAL);
-    list_head *head = md->entries + md->list_head_off;
+    map_assert_type(md, char const*, uint32_t, STR2VAL);
 
-    list_head *cur;
+    map_iter it;
     int count = 0;
-    for (cur = head->next; cur != head; cur = cur->next) {
-        void *entry = ((void*)cur) - md->list_head_off;
-        printf("Key %s ", *(char const**) (entry+md->key_off));
-        printf("Value %d\n", *(int*) (entry+md->val_off));
+    for (it = map_begin(md); it != map_end(md); map_iter_step(it)) {
+        char const *key;
+        uint32_t val;
+        map_iter_deref(md, it, &key, &val);
+        printf("Key %s ", key);
+        printf("Value %d\n", val);
         count++;
     }
 
     printf("Total count: %d\n", count);
 }
 
+typedef enum {
+    MAP_SET,
+
+} map_op_t;
+
+typedef struct {
+    map_op_t op;
+    char const *str;
+    uint32_t hash;
+} map_op;
+
 int main(void) {
     map m;
-    map_init(&m, char const*, int, STR2VAL);
+    map_init(&m, char const*, uint32_t, STR2VAL);
 
     print_map(&m);
 
@@ -81,5 +95,15 @@ int main(void) {
     
     map_free(&m);
 
+    /*
+    VECTOR_DECL(map_op, inputs);
+    vector_init(inputs);
+
+    printf("%d\n", inputs_cap);
+
+    vector_free(inputs);
+
+    map_free(&m);
+    */
     return 0;
 }
