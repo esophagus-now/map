@@ -62,7 +62,7 @@ void map_ptr_free(void *a) {
 
 //Internal function that sets up the free list of entries. A 
 //little more streamlined to manually manage prev and next.
-void __map_init_entries(__map_metadata *md) {
+void __map_init_entries(map *md) {
     list_head *head = &md->empties;
     //Get the list_head from the first (non-sentinel) entry
     head->next = md->entries + md->entry_sz + md->list_head_off;
@@ -87,7 +87,7 @@ void __map_init_entries(__map_metadata *md) {
 }
 
 //Returns NULL if not found, or pointer to value if found
-void *__map_search(__map_metadata const* md, void const* k) {
+void *map_search(map const* md, void const* k) {
     //See the big comment in the __map_metadata struct. This 
     //is the trick that lets us avoid dealing with pointers-
     //to-pointers.
@@ -129,7 +129,7 @@ void *__map_search(__map_metadata const* md, void const* k) {
 //Traverses entire list and checks if any of the keys/values should
 //be freed. TODO? Have a fast version that assumes no nodes need to 
 //be freed?
-void __map_free(__map_metadata *md) {
+void map_free(map *md) {
     //Sentinel (first entry in array) is the head of the 
     //list of full nodes
     list_head *head = md->entries + md->list_head_off;
@@ -151,12 +151,11 @@ void __map_free(__map_metadata *md) {
     }
 
     free(md->entries);
-    free(md);
 }
 
 static void fill_entry(
     void *e, 
-    __map_metadata const *md,
+    map const *md,
     void const *k, int free_key,
     void const *v, int free_val,
     int last
@@ -175,7 +174,7 @@ static void fill_entry(
     memcpy(e + md->val_off, v, val_sz);
 }
 
-static void map_expand(__map_metadata *md) {
+static void map_expand(map *md) {
     void *new_entries = calloc((md->slots+1)*2, md->entry_sz);
     if (!new_entries) {
         FAST_FAIL("out of memory");
@@ -184,8 +183,6 @@ static void map_expand(__map_metadata *md) {
     list_head *new_filled_list = new_entries + md->list_head_off;
     new_filled_list->prev = new_filled_list;
     new_filled_list->next = new_filled_list;
-    __map_metadata **ptr_to_md = new_entries + md->md_ptr_off;
-    *ptr_to_md = md;
 
     //Copy all the filled entries to the new storage. By the way, the 
     //code in this function is much smoother ever since I put the 
@@ -213,7 +210,7 @@ static void map_expand(__map_metadata *md) {
         if (md->key_is_ptr) k = *(void**)k;
         void *v = entry + md->val_off;
         if (md->val_is_ptr) v = *(void**)v;
-        __map_insert(NULL, md, k, flags->free_key, v, flags->free_val);
+        map_insert(md, k, flags->free_key, v, flags->free_val);
     }
 
     //Notice we don't call the specific freeing functions on the 
@@ -223,16 +220,8 @@ static void map_expand(__map_metadata *md) {
 
 //Returns 0 on success, 1 if previous value overwritten,
 //or negative on error
-int __map_insert(
-    //Terrible! I forgot that expanding the map means that the 
-    //handle the user is holding onto can be updated to point 
-    //somewhere new 
-    //TODO: change things around so the user is holding onto a 
-    //__map_metadata struct (the current method basically seemed 
-    //perfectly fine until just now as I ran into this issue) 
-    //Anway, this first parameter is only ever used when we perform 
-    //an expansion
-    void **sentinel_entry, __map_metadata *md, 
+int map_insert(
+    map *md, 
     void const *k, int free_key,
     void const *v, int free_val
 ) {
@@ -292,9 +281,8 @@ int __map_insert(
     //Item not found. 
 
     //The only way to insert is to use a free element
-    if(__map_md_full(md)) {
+    if(map_full(md)) {
         map_expand(md);
-        *sentinel_entry = md->entries;
         //So all of the work we just did has essentially gone to 
         //waste because all the memory and indices have been moved 
         //around. The simplest thing to do is to just recurse; the 
@@ -302,7 +290,7 @@ int __map_insert(
         //implementation is pretty small compared to the time we're 
         //forced to spend to rehash everything into the new table
 
-        return __map_insert(NULL, md, k, free_key, v, free_val);
+        return map_insert(md, k, free_key, v, free_val);
     }
 
     list_head *free_entry_node = __map_first_free_entry(md);
@@ -350,7 +338,7 @@ int __map_insert(
 //If someone wants to search by value, there is no other alternative 
 //than to look through everything in the map. Returns the pointer to 
 //the value in the entry if found, or NULL if not found.
-static list_head *find_by_value(__map_metadata *md, void const *v) {
+static list_head *find_by_value(map *md, void const *v) {
     //See the big comment in the __map_metadata struct. This 
     //is the trick that lets us avoid dealing with pointers-
     //to-pointers.
@@ -375,28 +363,26 @@ static list_head *find_by_value(__map_metadata *md, void const *v) {
 //is not NULL. If both are given, will search using key but will also 
 //make sure value matches. Returns 0 if entry was deleted, 1 if it 
 //wasn't found, or negative on error
-int __map_search_delete(
-    __map_metadata *md, void const *k, void const *v
-) {
+int map_search_delete(map *md, void const *k_needle, void const *v_needle) {
     void *found_val;
 
-    if (k) {
-        found_val = __map_search(md, k);
+    if (k_needle) {
+        found_val = map_search(md, k_needle);
         if (!found_val) return 1; //Not found
 
         //If the user also gave a value, make sure that the value 
         //found in this entry matches it:
-        if (v) {
+        if (v_needle) {
             //See the big comment in the __map_metadata struct. This 
             //is the trick that lets us avoid dealing with pointers-
             //to-pointers.
-            void const *pv = md->val_is_ptr ? &v : v;
+            void const *pv = md->val_is_ptr ? &v_needle : v_needle;
             if (md->val_comp(found_val, pv, md->val_sz) != 0) {
                 return 1; // Not found 
             }
         }
     } else {
-        found_val = find_by_value(md, v);
+        found_val = find_by_value(md, v_needle);
         if (!found_val) return 1; //Not found
     }
 
@@ -423,7 +409,7 @@ int __map_search_delete(
     //will find the next entry in this bucket with the same hash 
     //(if there is one) and overwrite the current entry. This is 
     //because I don't want tombstones (I just don't like how 
-    //"hacky" they fell, although they probably really improve 
+    //"hacky" they feel, although they probably really improve 
     //performance). 
     //  -> But Marco, isn't your code hacky as hell? Well yes, 
     //     but that's because C doesn't have templates and we 
