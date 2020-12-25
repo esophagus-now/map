@@ -8,7 +8,7 @@
 char *strdup(char const *);
 
 void print_map(map const *md) {
-    ASSERT_MAP_TYPE(md, char const*, int);
+    map_assert_type(md, char const*, int, STR2VAL);
     list_head *head = md->entries + md->list_head_off;
 
     list_head *cur;

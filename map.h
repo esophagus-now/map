@@ -243,14 +243,22 @@ int map_search_delete(map *md, void const *k_needle, void const *v_needle);
 #define STR_AMP(x) ((char const*[1]){(char const*)(x)})
 
 //TODO: is there any nice way to deal with key_is_ptr? 
-#define ASSERT_MAP_TYPE(m, ktype, vtype)                           \
+#define map_assert_type(m, ktype, vtype, x) \
+    EXPAND(DEFER(map_assert_custom_type)(m,ktype,vtype,x))
+
+#define map_assert_custom_type(m,ktype,vtype,hsh,kcmp,vcmp,kfree,vfree,ksz,vsz) \
 do {                                                               \
     MAP_STRUCT(ktype,vtype) *dummy = NULL;                         \
+    assert((m)->hash == hsh);                                      \
+    assert((m)->key_comp == kcmp);                                 \
+    assert((m)->val_comp == vcmp);                                 \
+    assert((m)->key_free == kfree);                                \
+    assert((m)->val_free == vfree);                                \
     assert((m)->entry_sz == sizeof(*dummy));                       \
     assert((m)->list_head_off == anon_offsetof(dummy,entry_list)); \
     assert((m)->flag_off == anon_offsetof(dummy,flags));           \
     assert((m)->key_off == anon_offsetof(dummy,key));              \
     assert((m)->val_off == anon_offsetof(dummy,val));              \
-} while(0)
+} while (0)
 
 #endif
